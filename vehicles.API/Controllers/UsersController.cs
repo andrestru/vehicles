@@ -354,7 +354,61 @@ namespace vehicles.API.Controllers
             return RedirectToAction(nameof(EditVehicle), new { id = vehiclePhoto.Vehicle.Id });
         }
 
+        public async Task<IActionResult> AddVehicleImage(int? id)
+        {
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            Vehicle vehicle = await _context.Vehicles
+                .FirstOrDefaultAsync(x => x.Id == id);
+            if (vehicle == null)
+            {
+                return NotFound();
+            }
+
+            VehiclePhotoViewModel model = new()
+            {
+                VehicleId = vehicle.Id
+            };
+
+            return View(model);
+        }
+
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddVehicleImage(VehiclePhotoViewModel model)
+        {
+            if (ModelState.IsValid)
+            {
+                Guid imageId = await _blobHelper.UploadBlobAsync(model.ImageFile, "vehiclesphotos");
+                Vehicle vehicle = await _context.Vehicles
+                    .Include(x => x.vehiclePhotos)
+                    .FirstOrDefaultAsync(x => x.Id == model.VehicleId);
+                if (vehicle.vehiclePhotos == null)
+                {
+                    vehicle.vehiclePhotos = new List<VehiclePhoto>();
+                }
+
+                vehicle.vehiclePhotos.Add(new VehiclePhoto
+                {
+                    ImageId = imageId
+                });
+
+                _context.Vehicles.Update(vehicle);
+                await _context.SaveChangesAsync();
+                return RedirectToAction(nameof(EditVehicle), new { id = vehicle.Id });
+            }
+
+            return View(model);
+
+        }
     }
+
+
+
 
 }
 
