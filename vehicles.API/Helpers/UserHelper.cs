@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using vehicles.API.Data;
 using vehicles.API.Data.Entities;
 using vehicles.API.Models;
+using vehicles.common.Enums;
 
 namespace vehicles.API.Helpers
 {
@@ -26,6 +27,33 @@ namespace vehicles.API.Helpers
         public async Task<IdentityResult> AddUserAsync(User user, string password)
         {
             return await _userManager.CreateAsync(user, password);
+        }
+
+        public async Task<User> AddUserAsync(AddUserViewModel model, Guid guid, UserType userType)
+        {
+            User user = new User
+            {
+                Address = model.Address,
+                Document = model.Document,
+                Email = model.Username,
+                FirstName = model.FirstName,
+                LastName = model.LastName,
+                ImageId = guid,
+                PhoneNumber = model.PhoneNumber,
+                DocumentType = await _context.documentTypes.FindAsync(model.DocumentTypeId),
+                UserName = model.Username,
+                UserType = userType
+            };
+
+            IdentityResult result = await _userManager.CreateAsync(user, model.Password);
+            if (result != IdentityResult.Success)
+            {
+                return null;
+            }
+
+            User newUser = await GetUserAsync(model.Username);
+            await AddUsertoRoleAsync(newUser, user.UserType.ToString());
+            return newUser;
         }
 
         public async Task AddUsertoRoleAsync(User user, string roleName)

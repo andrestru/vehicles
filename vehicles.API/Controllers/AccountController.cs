@@ -2,18 +2,27 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using vehicles.API.Data;
+using vehicles.API.Data.Entities;
 using vehicles.API.Helpers;
 using vehicles.API.Models;
+using vehicles.common.Enums;
 
 namespace vehicles.API.Controllers
 {
     public class AccountController : Controller
     {
         private readonly IUserHelper _userHelper;
-
-        public AccountController(IUserHelper userHelper)
+        private readonly DataContext _context;
+        private readonly ICombosHelper _combosHelper;
+        private readonly IBlobHelper _blobHelper;
+        
+        public AccountController(IUserHelper userHelper, DataContext context, ICombosHelper combosHelper, IBlobHelper blobHelper)
         {
             _userHelper = userHelper;
+            _context = context;
+            _combosHelper = combosHelper;
+            _blobHelper = blobHelper;
         }
 
         public IActionResult Login()
@@ -52,6 +61,61 @@ namespace vehicles.API.Controllers
         {
             await _userHelper.LogoutAsync();
             return RedirectToAction("Index", "Home");
+        }
+
+        public IActionResult NotAuthorized()
+        {
+            return View();
+        }
+
+        public IActionResult Register()
+        {
+            AddUserViewModel model = new AddUserViewModel
+            {
+                DocumentTypes = _combosHelper.GetComboDocumentsTypes()
+            };
+
+            return View(model);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Register(AddUserViewModel model)
+        {
+            if (ModelState.IsValid)
+            {
+                Guid imageId = Guid.Empty;
+
+                if (model.ImageFile != null)
+                {
+                    imageId = await _blobHelper.UploadBlobAsync(model.ImageFile, "users");
+                }
+
+                User user = await _userHelper.AddUserAsync(model, imageId, UserType.User);
+                if (user == null)
+                {
+                    ModelState.AddModelError(string.Empty, "Este correo ya está siendo usado por otro usuario.");
+                    model.DocumentTypes = _combosHelper.GetComboDocumentsTypes();
+                    return View(model);
+                }
+
+                LoginViewModel loginViewModel = new LoginViewModel
+                {
+                    Password = model.Password,
+                    RememberMe = false,
+                    Username = model.Username
+                };
+
+                var result2 = await _userHelper.LoginAsync(loginViewModel);
+
+                if (result2.Succeeded)
+                {
+                    return RedirectToAction("Index", "Home");
+                }
+
+            }
+            model.DocumentTypes = _combosHelper.GetComboDocumentsTypes();
+            return View(model);
         }
     }
 }
